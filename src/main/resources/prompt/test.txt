@@ -1,0 +1,17 @@
+[
+    {
+        "method": "update",
+        "id": 1,
+        "proposition": "小王今年28岁"
+    },
+    {
+        "method": "enhance",
+        "id": 2,
+        "proposition": ""
+    },
+    {
+        "method": "create",
+        "id": -1,
+        "proposition": "小李属猪"
+    }
+]
