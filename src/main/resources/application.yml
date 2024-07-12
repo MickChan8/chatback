@@ -4,7 +4,7 @@ logging:
   level:
     root: info
 qwen:
-  secret_key: sk-46f2d279e28345408ca38870f69d6cc8
+  secret_key: 
 redis:
   server: localhost
 spring:
