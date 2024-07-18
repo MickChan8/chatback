@@ -1,5 +1,10 @@
 package com.cyl.ctrbt.entity;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
 public class Message {
     /* 名称 */
     private String name;
@@ -7,19 +12,4 @@ public class Message {
     /* 消息 */
     private String content;
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
 }
