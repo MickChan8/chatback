@@ -3,6 +3,7 @@ package com.cyl.ctrbt.service;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.cyl.ctrbt.entity.BingNewsResult;
+import com.cyl.ctrbt.entity.BingWebPagesResult;
 import com.cyl.ctrbt.entity.SearchResult;
 import com.cyl.ctrbt.entity.Weather;
 import org.apache.http.HttpEntity;
@@ -31,6 +32,7 @@ import java.util.List;
 public class SearchService {
     private static final String BING_SEARCH_URL = "https://www.bing.com/search?q=";
     private static final String BING_NEWS_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/news/search?textDecorations=True&textFormat=HTML&count=10&sortBy=Date&q=";
+    private static final String BING_WEB_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/search?responseFilter=webpages&count=10&&q=";
 
     @Value("${bing.secret_key}")
     private String bingKey;
@@ -67,6 +69,42 @@ public class SearchService {
 
         return textContent.toString();
     }
+
+    public List<BingWebPagesResult> searchBingWebpages(String query) throws IOException {
+
+        String searchUrl = BING_WEB_SEARCH_URL + URLEncoder.encode(query, "UTF-8");
+
+        URL url = new URL(searchUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Ocp-Apim-Subscription-Key", bingKey);
+
+        // 取得返回
+        StringBuilder response = new StringBuilder();
+        try (BufferedReader in = new BufferedReader(
+                new InputStreamReader(connection.getInputStream(), "UTF-8"))) {
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                response.append(inputLine);
+            }
+        }catch(Exception e){
+            // 读取错误信息
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), "utf-8"))) {
+                StringBuilder responseErr = new StringBuilder();
+                String responseLine;
+                while ((responseLine = br.readLine()) != null) {
+                    responseErr.append(responseLine.trim());
+                }
+                System.out.println("Error Details: " + responseErr.toString());
+            }
+        }
+        finally {
+            connection.disconnect();
+        }
+
+        return JSONUtil.parseObj(response).getJSONObject("webPages").getJSONArray("value").toList(BingWebPagesResult.class);
+    }
+
 
     public List<BingNewsResult> searchBingNews(String query) throws IOException {
 

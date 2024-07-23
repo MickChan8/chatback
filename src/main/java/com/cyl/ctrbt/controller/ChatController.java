@@ -4,10 +4,7 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.cyl.ctrbt.constants.Constants;
-import com.cyl.ctrbt.entity.Action;
-import com.cyl.ctrbt.entity.BingNewsResult;
-import com.cyl.ctrbt.entity.Message;
-import com.cyl.ctrbt.entity.SearchResult;
+import com.cyl.ctrbt.entity.*;
 import com.cyl.ctrbt.service.QwenService;
 import com.cyl.ctrbt.service.SearchService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,28 +51,33 @@ public class ChatController {
       Action action = qwenService.chooseAction(messages);
 
       // 联网查询
-      if(action.getMethod().equals("search")){
+      if(action.getMethod().equals("news")){
 
-        // 先Bing API
+        // 先Bing News
         List<BingNewsResult> newsResults = searchService.searchBingNews(action.getQuery());
         if(newsResults.size()>0){
           String strResult = searchService.getPageText(newsResults.get(0).getUrl());
           return qwenService.chat(messages, Constants.CHAT_MODE_SEARCH, strResult);
         }
 
-        // 再Bing
-        List<SearchResult> results = searchService.searchBing(action.getQuery());
-        if(results.size()>0){
-          String strResult = searchService.getPageText(results.get(0).getUrl());
+        // 再Bing Web
+        List<BingWebPagesResult> webResults = searchService.searchBingWebpages(action.getQuery());
+        if(webResults.size()>0){
+          String strResult = searchService.getPageText(webResults.get(0).getUrl());
           return qwenService.chat(messages, Constants.CHAT_MODE_SEARCH, strResult);
         }
 
-        // 后Baidu
-        results = searchService.searchBaidu(action.getQuery());
-        if(results.size()>0){
-          String strResult = searchService.getPageText(results.get(0).getUrl());
+      }
+
+      else if(action.getMethod().equals("web")){
+
+        // Bing Web
+        List<BingWebPagesResult> webResults = searchService.searchBingWebpages(action.getQuery());
+        if(webResults.size()>0){
+          String strResult = searchService.getPageText(webResults.get(0).getUrl());
           return qwenService.chat(messages, Constants.CHAT_MODE_SEARCH, strResult);
         }
+
       }
     }catch (Exception e){
       System.out.println("------Choosing action failed!!!------");
