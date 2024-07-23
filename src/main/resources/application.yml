@@ -4,12 +4,21 @@ logging:
   level:
     root: info
 qwen:
-  secret_key: 
+  secret_key:
+gaode:
+  secret_key:
+bing:
+  secret_key:
 redis:
-  server: localhost
+  server:
 spring:
   http:
     encoding:
       charset: UTF-8
       enabled: true
       force: true
+  datasource:
+    url:
+    driver-class-name: com.mysql.jdbc.Driver
+    username:
+    password:

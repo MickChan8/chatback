@@ -4,9 +4,7 @@ import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.cyl.ctrbt.constants.Constants;
-import com.cyl.ctrbt.entity.Memory;
-import com.cyl.ctrbt.entity.MemoryAction;
-import com.cyl.ctrbt.entity.Message;
+import com.cyl.ctrbt.entity.*;
 import com.cyl.ctrbt.repository.MemoryRepository;
 import com.cyl.ctrbt.util.MemoryUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,10 +36,73 @@ public class QwenService {
     private WeatherService weatherService;
 
     @Autowired
+    private  SearchService searchService;
+
+    @Autowired
     private MemoryRepository memoryRepository;
 
     private static boolean memoryFlg = true;
 
+    // 调查
+    public String gatherInformation(String topic) throws IOException {
+
+        // 生成搜索关键词
+        // 获取prompt
+        String fileStrQuery = ResourceUtil.readUtf8Str("classpath:prompt\\InformationGathering\\Query.txt");
+        // 处理拼接prompt
+        fileStrQuery = StringUtils.replace(fileStrQuery, "#topic#", topic);
+        // 发送请求
+        String query = doRequest(fileStrQuery, Constants.QWEN15_110B, 0.1f);
+
+        // 调用bing搜索信息
+        List<BingNewsResult> newsResults = searchService.searchBingNews(query);
+        if(newsResults.isEmpty()){
+            return "调查主题“"+topic+"”搜索不到相关信息！";
+        }
+
+        // 提取网页内容
+        ArrayList<String> pageText = new ArrayList<>();
+        for(BingNewsResult result: newsResults){
+            pageText.add(searchService.getPageText(result.getUrl()));
+        }
+        if (pageText.size() > 5) {
+            pageText.subList(5, pageText.size()).clear();
+        }
+
+        // 生成调查报告
+        ArrayList<String> reports = new ArrayList<>();
+        for(String text: pageText){
+            // 获取prompt
+            String fileStrPage = ResourceUtil.readUtf8Str("classpath:prompt\\InformationGathering\\PageSummary.txt");
+            // 处理拼接prompt
+            fileStrPage = StringUtils.replace(fileStrPage, "#topic#", topic);
+            fileStrPage = StringUtils.replace(fileStrPage, "#content#", text);
+            // 发送请求
+            reports.add(doRequest(fileStrPage, Constants.QWEN2_72B, 0.5f));
+        }
+
+        // 生成总结报告
+        // 获取prompt
+        String fileStrReport1 = ResourceUtil.readUtf8Str("classpath:prompt\\InformationGathering\\ReportSummary_1.txt");
+        // 处理拼接prompt
+        fileStrReport1 = StringUtils.replace(fileStrReport1, "#topic#", topic);
+        String fileStrReport2 = "";
+        for(int i = 0; i < reports.size(); i++){
+            // 获取prompt
+            String fileStrReport2_part = ResourceUtil.readUtf8Str("classpath:prompt\\InformationGathering\\ReportSummary_2.txt");
+            // 处理拼接prompt
+            fileStrReport2_part = StringUtils.replace(fileStrReport2_part, "#number#", String.valueOf(i+1));
+            fileStrReport2_part = StringUtils.replace(fileStrReport2_part, "#report#", reports.get(i));
+            fileStrReport2 = fileStrReport2 + fileStrReport2_part;
+
+        }
+
+//        System.out.println(fileStrReport1+fileStrReport2);
+
+        return doRequest(fileStrReport1+fileStrReport2, Constants.QWEN2_72B, 0.5f);
+    }
+
+    // 解卦
     public String jiegua(String guawen) throws IOException {
 
         // 获取prompt
@@ -56,26 +117,69 @@ public class QwenService {
         return responseStr;
     }
 
-    public String chat(List<Message> messages) throws IOException {
+    // 聊天选择行动
+    public Action chooseAction(List<Message> messages) throws IOException {
+
+        // 获取当前日期时间
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy年M月d日 EEEE HH:mm", Locale.CHINESE);
+        String formattedDate = now.format(formatter);
+
+        // 生成聊天记录
+        String strConversation = getConversation(messages);
+
+        // 获取prompt
+        String fileStr = ResourceUtil.readUtf8Str("classpath:prompt\\Choose.txt");
+
+        // 处理拼接prompt
+        fileStr = StringUtils.replace(fileStr, "#time#", formattedDate);
+        fileStr = StringUtils.replace(fileStr, "#conversation#", strConversation);
+        fileStr = StringUtils.replace(fileStr, "#lastMessage#", messages.get(messages.size()-1).getContent());
+
+        // 发送请求
+        String jsonStrBefore = doRequest(fileStr, Constants.QWEN15_110B, 0.1f);
+        jsonStrBefore = StringUtils.replace(jsonStrBefore, "\r\n", "\n");
+        String jsonStrAfter = StringUtils.replace(StringUtils.replace(jsonStrBefore, "\n```", ""),
+                "```json\n", "");
+
+        return JSONUtil.toBean(jsonStrAfter, Action.class);
+    }
+
+
+    // 聊天
+    public String chat(List<Message> messages, String chatMode, String shortMemory) throws IOException {
 
         // 获取长期记忆
         String strLongMemory = getLongMemories();
 
-        // 获取短期记忆
-        ArrayList<Memory> shortMemories =  new ArrayList<>();
-        memoryRepository.findByMemoryType(3).forEach(shortMemories::add);
-        if(shortMemories.size() == 0){
-            MemoryUtil.createMemory(shortMemories, "二狗现在心情很不错，虽然依旧毒舌但乐于回答群友的问题", false);
+        // 短期记忆编辑
+        String strShortMemory = "";
+        // 聊天模式，则获取短期记忆正常聊天
+        if(chatMode.equals(Constants.CHAT_MODE_CHAT)){
+
+            // 获取短期记忆
+            ArrayList<Memory> shortMemories =  new ArrayList<>();
+            memoryRepository.findByMemoryType(3).forEach(shortMemories::add);
+            if(shortMemories.size() == 0){
+                MemoryUtil.createMemory(shortMemories, "二狗现在心情很不错，虽然依旧毒舌但乐于回答群友的问题", false);
+            }
+            // 生成短期记忆列表
+            StringBuilder sbShortMemory = new StringBuilder();
+            for(int i=0; i<shortMemories.size(); i++){
+                sbShortMemory.append(i+1).append(". ").append(shortMemories.get(i).getProposition()).append("\n");
+            }
+            strShortMemory = sbShortMemory.toString();
+            System.out.println("-----Short memories------:");
+            System.out.println(strShortMemory);
+            System.out.println("\n");
+
+        // 搜索模式，则根据结果回答
+        }else if(chatMode.equals(Constants.CHAT_MODE_SEARCH)) {
+
+            strShortMemory = "二狗上网查了一下，以下为查询到的网页内容：···"+shortMemory+"···";
+            System.out.println("-----Getting informations from the Internet------:");
+            System.out.println("\n");
         }
-        // 生成短期记忆列表
-        StringBuilder sbShortMemory = new StringBuilder();
-        for(int i=0; i<shortMemories.size(); i++){
-            sbShortMemory.append(i+1).append(". ").append(shortMemories.get(i).getProposition()).append("\n");
-        }
-        String strShortMemory = sbShortMemory.toString();
-        System.out.println("-----Short memories------:");
-        System.out.println(strShortMemory);
-        System.out.println("\n");
 
         // 生成聊天记录
         String strConversation = getConversation(messages);
@@ -88,8 +192,12 @@ public class QwenService {
         fileStr = StringUtils.replace(fileStr, "#conversation#", strConversation);
         fileStr = StringUtils.replace(fileStr, "#shortMemories#", strShortMemory);
 
+        String responseStr = "";
         // 发送请求
-        String responseStr = doRequest(fileStr, Constants.QWEN15_110B, -1f);
+        if(chatMode.equals(Constants.CHAT_MODE_SEARCH))
+            responseStr = doRequest(fileStr, Constants.QWEN2_72B, -1f);
+        else if(chatMode.equals(Constants.CHAT_MODE_CHAT))
+            responseStr = doRequest(fileStr, Constants.QWEN15_110B, -1f);
 
         Message lastMessage = new Message();
         lastMessage.setName("二狗");
@@ -111,7 +219,6 @@ public class QwenService {
 
         return responseStr;
     }
-
 
     // 生成记忆
     public synchronized void analyseMemory(List<Message> messages) throws IOException {
