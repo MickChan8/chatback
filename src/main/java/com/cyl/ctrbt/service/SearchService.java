@@ -32,7 +32,7 @@ import java.util.List;
 public class SearchService {
     private static final String BING_SEARCH_URL = "https://www.bing.com/search?q=";
     private static final String BING_NEWS_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/news/search?textDecorations=True&textFormat=HTML&count=10&sortBy=Date&q=";
-    private static final String BING_WEB_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/search?responseFilter=webpages&count=10&&q=";
+    private static final String BING_WEB_SEARCH_URL = "https://api.bing.microsoft.com/v7.0/search?responseFilter=webpages&count=15&&q=";
 
     @Value("${bing.secret_key}")
     private String bingKey;
@@ -97,6 +97,7 @@ public class SearchService {
                 }
                 System.out.println("Error Details: " + responseErr.toString());
             }
+            return new ArrayList<BingWebPagesResult>();
         }
         finally {
             connection.disconnect();

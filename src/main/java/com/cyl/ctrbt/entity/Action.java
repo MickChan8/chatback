@@ -10,4 +10,7 @@ public class Action {
     private String method;
 
     private String query;
+    
+    private String topic;
+
 }

@@ -255,6 +255,7 @@ public class QwenService {
 
         // 发送请求，获取action
         String jsonStrBefore = doRequest(fileStr, Constants.QWEN15_110B, 0.1f);
+        jsonStrBefore = StringUtils.replace(jsonStrBefore, "\r\n", "\n");
         String jsonStrAfter = StringUtils.replace(StringUtils.replace(jsonStrBefore, "\n```", ""),
                 "```json\n", "");
         List<MemoryAction> actions = JSONUtil.toList(jsonStrAfter, MemoryAction.class);

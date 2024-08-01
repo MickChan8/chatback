@@ -5,6 +5,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.cyl.ctrbt.constants.Constants;
 import com.cyl.ctrbt.entity.*;
+import com.cyl.ctrbt.service.AgentService;
 import com.cyl.ctrbt.service.QwenService;
 import com.cyl.ctrbt.service.SearchService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,9 @@ public class ChatController {
 
   @Autowired
   public SearchService searchService;
+
+  @Autowired
+  public AgentService agentService;
 
   @RequestMapping(value = "/jiegua", method = RequestMethod.POST, produces = "text/plain;charset=UTF-8")
   public String receiveMessage(@RequestBody(required = false) String guawen) throws IOException {
@@ -79,6 +83,40 @@ public class ChatController {
         }
 
       }
+
+      else if(action.getMethod().equals("research")){
+
+        Thread td = new Thread(() -> {
+          try {
+            agentService.doSearch(action.getTopic());
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
+        td.start();
+
+        return "已呼叫超级二狗调查："+action.getTopic();
+
+      }
+
+      else if(action.getMethod().equals("show")){
+
+        return agentService.getSearchResultSummary();
+
+      }
+
+      else if(action.getMethod().equals("get")){
+
+        Integer id = null;
+        try {
+          id = Integer.parseInt(action.getQuery());
+        }catch (Exception e){
+          id = 0;
+        }
+        return agentService.getSearchResult(id);
+
+      }
+
     }catch (Exception e){
       System.out.println("------Choosing action failed!!!------");
     }
